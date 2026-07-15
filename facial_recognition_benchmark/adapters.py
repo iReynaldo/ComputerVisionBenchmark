@@ -1,3 +1,11 @@
+"""Translate student application APIs into the benchmark contracts.
+
+The native protocols are intentionally small.  Reynaldo's broader
+``FaceRecognitionApp`` remains supported through an exact compatibility layer
+so the reference application can run without adopting benchmark-specific
+methods.
+"""
+
 from __future__ import annotations
 
 import inspect
@@ -13,14 +21,33 @@ from .contracts import ClusterId, Image, PersonId
 
 
 class AdapterContractError(RuntimeError):
-    pass
+    """Report an application-to-benchmark mapping or output error."""
 
 
 def instantiate(factory: Any, model: Any) -> Any:
-    if _is_adapter(factory) and not inspect.isclass(factory):
-        return factory
+    """Create one fresh application or adapter for a benchmark scenario.
+
+    Parameters
+    ----------
+    factory
+        Submission entry-point factory accepting the benchmark-owned FaceNet
+        model. Calling it for every scenario keeps application state isolated.
+    model
+        FaceNet model shared by all submissions in the evaluation lane.
+
+    Returns
+    -------
+    Any
+        The object returned by the submission factory.
+
+    Raises
+    ------
+    AdapterContractError
+        If the entry point is neither an adapter nor a compatible factory.
+    """
+
     if not callable(factory):
-        raise _mapping_error(factory, "Entry point is not a callable factory or adapter object.")
+        raise _mapping_error(factory, "Entry point is not a callable factory.")
     try:
         inspect.signature(factory).bind(model)
     except TypeError as error:
@@ -32,6 +59,23 @@ def instantiate(factory: Any, model: Any) -> Any:
 
 
 def adapt_recognition(candidate: Any) -> Any:
+    """Return a native recognition adapter for an application object.
+
+    Native ``enroll``/``recognize`` objects pass through unchanged. Reynaldo's
+    complete documented method surface is adapted from RGB arrays to its
+    path-based inputs. Other designs must provide an explicit adapter.
+
+    Parameters
+    ----------
+    candidate
+        Application or adapter created by the submission factory.
+
+    Returns
+    -------
+    Any
+        An object implementing the recognition protocol.
+    """
+
     if callable(getattr(candidate, "enroll", None)) and callable(
         getattr(candidate, "recognize", None)
     ):
@@ -46,6 +90,19 @@ def adapt_recognition(candidate: Any) -> Any:
 
 
 def adapt_clustering(candidate: Any) -> Any:
+    """Return a native clustering adapter for an application object.
+
+    Parameters
+    ----------
+    candidate
+        Application or adapter created by the submission factory.
+
+    Returns
+    -------
+    Any
+        An object implementing ``cluster(images, seed=...)``.
+    """
+
     if callable(getattr(candidate, "cluster", None)):
         return candidate
     if _has_reynaldo_surface(candidate):
@@ -54,13 +111,6 @@ def adapt_clustering(candidate: Any) -> Any:
         candidate,
         "Clustering requires cluster(images, seed=...), or Reynaldo's documented "
         "cluster_images surface.",
-    )
-
-
-def _is_adapter(value: Any) -> bool:
-    return any(
-        callable(getattr(value, name, None))
-        for name in ("enroll", "recognize", "cluster", "cluster_images")
     )
 
 

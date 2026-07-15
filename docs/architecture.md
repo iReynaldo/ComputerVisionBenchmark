@@ -21,20 +21,28 @@ retains that one adapter across initial enrollment, known queries, unknown
 rejection, enrollment of the new identity, and held-out re-identification. This
 makes database updates observable without prescribing how they are implemented.
 
-## Publication boundary
+## Repository layers
 
-The public repository contains contracts, drivers, deterministic scorers,
-public manifests, and an interface-only temporary starter. It contains no
-distance rule, database implementation, or Whispers solution. The completed
-application used for calibration remains instructor-only. The temporary starter
-will later be extracted into `CogWorksBWSI/week2-vision-capstone` with clean
-history and registered by immutable repository ID and commit.
+The two original projects retain separate responsibilities:
 
-This records the later course decisions from both class transcripts: distribute
-an interface rather than the completed application, keep a separate forkable
-student template, verify the integrated path jointly, and cover macOS and
-Windows in addition to Linux. It also preserves the broader two-track decision
-without forcing every team into one application class.
+- `face_recognition_app` is Reynaldo's complete, documented class-based
+  reference. It is a golden submission for direct, CLI, hosted, portal, and
+  Discord integration tests.
+- `facial_recognition_benchmark` contains both the original component
+  diagnostics and the trusted v2 behavioral runner. Diagnostics such as the
+  reference cosine-distance and synthetic database checks remain useful, but
+  they are explicitly outside leaderboard scoring.
+
+The future forkable student template remains a separate repository concern; it
+must not replace the working reference application here. The test suite also
+contains a function-oriented fixture modeled after the 2024 `FaceRecognizer`
+project. It verifies that two substantially different application structures
+receive the same scores through thin adapters.
+
+This layering preserves the course's documented `Profile`, `Database`, and
+`Node` examples while keeping official evaluation behavioral. It also records
+the transcript decisions to verify the complete integrated path jointly and on
+macOS and Windows in addition to Linux.
 
 [recognition]: https://rsokl.github.io/CogWeb/Video/FacialRecognition.html
 [whispers]: https://rsokl.github.io/CogWeb/Video/Whispers.html

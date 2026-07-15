@@ -69,6 +69,11 @@ def test_factory_signature_error_is_actionable():
         instantiate(lambda: object(), object())
 
 
+def test_entry_point_must_be_a_factory_so_scenarios_receive_fresh_state():
+    with pytest.raises(AdapterContractError, match="callable factory"):
+        instantiate(NativeRecognition(), object())
+
+
 def test_factory_internal_type_error_is_not_mislabeled():
     def broken(model):
         raise TypeError("student bug")

@@ -23,11 +23,12 @@ jobs:
           path: |
             .cache/torch
             .cache/huggingface
-            ~/.cache/CogWorks
+            ~/.cache/cogworks
           key: week2-real-v1-${{ runner.os }}
       - run: python -m pip install --upgrade pip
       - run: >-
           python -m pip install -e ".[test,data]"
+          -e "face_recognition_app[test]"
           numpy==1.24.4 Pillow==10.2.0 torch==2.2.2 torchvision==0.17.2
           facenet-pytorch==2.6.0 opencv-python-headless==4.10.0.84
           "facenet_models @ git+https://github.com/CogWorksBWSI/facenet_models.git@96b9599b03f26910b66f61ce725a8660e0ba654c"

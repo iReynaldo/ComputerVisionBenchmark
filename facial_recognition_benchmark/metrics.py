@@ -1,3 +1,5 @@
+"""Deterministic recognition and label-invariant clustering metrics."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -11,6 +13,19 @@ def score_recognition(
     outputs: Sequence[Mapping[str, Sequence[Optional[PersonId]]]],
     expected: Sequence[Mapping[str, Sequence[Optional[PersonId]]]],
 ) -> Dict[str, float]:
+    """Score known identification and the unknown-person lifecycle.
+
+    Malformed, missing, or wrong-length behavior produces zero-valued metrics
+    rather than silently changing the denominator.
+
+    Parameters
+    ----------
+    outputs
+        Student labels produced for each recognition scenario.
+    expected
+        Trusted labels derived from the scenario definitions.
+    """
+
     if len(outputs) != len(expected) or not expected:
         return _empty_recognition_score()
 
@@ -62,6 +77,8 @@ def score_recognition(
 def score_clustering(
     outputs: Sequence[Sequence[ClusterId]], expected: Sequence[Sequence[ClusterId]]
 ) -> Dict[str, float]:
+    """Average pairwise F1 and adjusted Rand index across clustering cases."""
+
     if len(outputs) != len(expected) or not expected:
         return {"clustering_pairwise_f1": 0.0, "adjusted_rand_index": 0.0}
     f1_scores: List[float] = []
@@ -80,6 +97,16 @@ def score_clustering(
 
 
 def pairwise_f1(actual: Sequence[ClusterId], expected: Sequence[ClusterId]) -> float:
+    """Measure whether pairs are grouped together, ignoring label names.
+
+    Parameters
+    ----------
+    actual
+        Cluster identifiers returned by the application.
+    expected
+        Trusted identity partition.
+    """
+
     true_positive = false_positive = false_negative = 0
     for left in range(len(expected)):
         for right in range(left + 1, len(expected)):
@@ -99,6 +126,8 @@ def pairwise_f1(actual: Sequence[ClusterId], expected: Sequence[ClusterId]) -> f
 
 
 def adjusted_rand_index(actual: Sequence[ClusterId], expected: Sequence[ClusterId]) -> float:
+    """Compute the adjusted Rand index without a scikit-learn dependency."""
+
     size = len(expected)
     if size < 2:
         return 1.0

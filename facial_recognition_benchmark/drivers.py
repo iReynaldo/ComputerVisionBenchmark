@@ -1,3 +1,5 @@
+"""Benchmark-owned execution drivers for student application behavior."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +13,8 @@ from .contracts import ClusterId, Image, PersonId
 
 @dataclass(frozen=True)
 class RecognitionIdentity:
+    """Enrollment and held-out images for one known identity."""
+
     person_id: PersonId
     enrollment: Sequence[Image]
     queries: Sequence[Image]
@@ -18,6 +22,13 @@ class RecognitionIdentity:
 
 @dataclass(frozen=True)
 class RecognitionScenario:
+    """One complete known-to-unknown recognition lifecycle.
+
+    The same fresh adapter is retained across initial enrollment, known
+    queries, unknown rejection, enrollment of that unknown identity, and
+    held-out re-identification.
+    """
+
     known: Sequence[RecognitionIdentity]
     unknown_person_id: PersonId
     unknown_queries: Sequence[Image]
@@ -27,6 +38,8 @@ class RecognitionScenario:
 
 @dataclass(frozen=True)
 class ClusteringScenario:
+    """One fixed image partition and random seed for Whispers evaluation."""
+
     images: Sequence[Image]
     expected_labels: Sequence[ClusterId]
     seed: int
@@ -38,7 +51,22 @@ RecognitionOutput = Dict[str, List[Optional[PersonId]]]
 def run_recognition_scenario(
     factory: Any, model: Any, scenario: RecognitionScenario
 ) -> RecognitionOutput:
-    """Run one stateful recognition lifecycle with a fresh student adapter."""
+    """Run one stateful recognition lifecycle with a fresh student adapter.
+
+    Parameters
+    ----------
+    factory
+        Raw submission factory or compatible application object.
+    model
+        Benchmark-owned FaceNet model supplied to the factory.
+    scenario
+        Enrollment and query sequence to execute.
+
+    Returns
+    -------
+    dict
+        Labels for known, pre-enrollment unknown, and post-enrollment queries.
+    """
 
     adapter = adapt_recognition(instantiate(factory, model))
     for identity in scenario.known:
@@ -70,7 +98,11 @@ def run_recognition_scenario(
 def run_clustering_scenario(
     factory: Any, model: Any, scenario: ClusteringScenario
 ) -> List[ClusterId]:
-    """Run one clustering case with a fresh student adapter."""
+    """Run and validate one clustering case with a fresh student adapter.
+
+    Cluster identifiers may be arbitrary strings or integers. Only their
+    partition relationships are meaningful to scoring.
+    """
 
     adapter = adapt_clustering(instantiate(factory, model))
     labels = adapter.cluster(scenario.images, seed=scenario.seed)
@@ -94,6 +126,8 @@ def run_clustering_scenario(
 
 
 def recognition_expected(scenario: RecognitionScenario) -> RecognitionOutput:
+    """Construct trusted labels for a recognition lifecycle scenario."""
+
     known: List[Optional[PersonId]] = []
     for identity in scenario.known:
         known.extend([identity.person_id] * len(identity.queries))

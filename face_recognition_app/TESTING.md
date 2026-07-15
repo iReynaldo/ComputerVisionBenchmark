@@ -1,4 +1,4 @@
-# Testing your capstone
+# Testing the reference application and student capstones
 
 Your tests are for fast feedback on the choices your team makes. They are not
 scored, counted, uploaded separately, or required to follow a particular module

@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[test]"
+      - run: python -m pip install -e ".[test]" -e "face_recognition_app[test]"
       - run: ruff check .
       - run: pytest
 
@@ -33,3 +33,5 @@ jobs:
       - run: python -m pip install --upgrade pip build
       - run: python -m build
       - run: python tools/check_wheel.py
+      - run: python -m build face_recognition_app
+      - run: python tools/check_reference_wheel.py

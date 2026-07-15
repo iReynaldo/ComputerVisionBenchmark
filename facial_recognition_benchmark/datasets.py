@@ -1,3 +1,10 @@
+"""Load fixed CelebA manifests into a verified, atomic local cache.
+
+Only rows named by a versioned manifest are fetched.  Source-identity and
+decoded-pixel hashes make the public test and evaluation sets repeatable while
+allowing the image files themselves to remain outside the repository.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -22,11 +29,25 @@ CACHE_VERSION = "v1"
 
 
 class DatasetError(RuntimeError):
-    pass
+    """Report invalid manifests, downloads, or cached image data."""
 
 
 @dataclass(frozen=True)
 class CacheStatus:
+    """Describe whether all data for one manifest is locally ready.
+
+    Attributes
+    ----------
+    manifest_id
+        Stable identifier of the checked manifest.
+    ready
+        Whether every selected image and cache checksum is valid.
+    path
+        Versioned platform cache directory.
+    message
+        ``"ready"`` or an actionable explanation of the cache problem.
+    """
+
     manifest_id: str
     ready: bool
     path: Path
@@ -34,6 +55,20 @@ class CacheStatus:
 
 
 def load_manifest(tier: str) -> Dict[str, Any]:
+    """Load and validate a packaged public manifest.
+
+    Parameters
+    ----------
+    tier
+        ``"test"`` for the small integration set or ``"evaluation"`` for the
+        larger public run.
+
+    Returns
+    -------
+    dict
+        Parsed manifest data.
+    """
+
     filename = f"public-{tier}.json"
     try:
         text = (
@@ -52,6 +87,19 @@ def load_manifest(tier: str) -> Dict[str, Any]:
 
 
 def validate_manifest(manifest: Mapping[str, Any]) -> None:
+    """Validate manifest schema, references, and pinned dataset metadata.
+
+    Parameters
+    ----------
+    manifest
+        Candidate manifest mapping.
+
+    Raises
+    ------
+    DatasetError
+        If required metadata, hashes, samples, or case references are invalid.
+    """
+
     required = {"schema_version", "manifest_id", "dataset", "revision", "split", "samples"}
     missing = sorted(required.difference(manifest))
     if missing:
@@ -97,6 +145,19 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
 
 
 def assert_disjoint(manifests: Sequence[Mapping[str, Any]]) -> None:
+    """Require manifests to use disjoint source rows and identities.
+
+    Parameters
+    ----------
+    manifests
+        Public or official manifests to compare.
+
+    Raises
+    ------
+    DatasetError
+        If any pair shares a dataset row or source identity.
+    """
+
     seen_rows: Dict[Tuple[str, int], str] = {}
     seen_identities: Dict[str, str] = {}
     for manifest in manifests:
@@ -118,6 +179,16 @@ def assert_disjoint(manifests: Sequence[Mapping[str, Any]]) -> None:
 
 
 def cache_status(manifest: Mapping[str, Any], cache_root: Optional[Path] = None) -> CacheStatus:
+    """Inspect a manifest cache without downloading data.
+
+    Parameters
+    ----------
+    manifest
+        Validated dataset manifest.
+    cache_root
+        Optional cache root used by tests and managed environments.
+    """
+
     path = _cache_directory(manifest, cache_root)
     try:
         _validate_cache(path, manifest)
@@ -131,6 +202,23 @@ def materialize_manifest(
     cache_root: Optional[Path] = None,
     row_provider: Optional[Callable[[str, str, Sequence[int]], Iterable[Tuple[int, Any]]]] = None,
 ) -> Path:
+    """Download and atomically cache every row selected by a manifest.
+
+    Parameters
+    ----------
+    manifest
+        Fixed manifest describing the required CelebA rows.
+    cache_root
+        Optional cache root override.
+    row_provider
+        Optional deterministic row source used by offline tests.
+
+    Returns
+    -------
+    pathlib.Path
+        Verified cache directory containing one ``.npy`` file per sample.
+    """
+
     validate_manifest(manifest)
     target = _cache_directory(manifest, cache_root)
     if cache_status(manifest, cache_root).ready:
@@ -174,6 +262,16 @@ def materialize_manifest(
 def recognition_scenarios(
     manifest: Mapping[str, Any], cache_root: Optional[Path] = None
 ) -> List[RecognitionScenario]:
+    """Materialize a manifest's stateful recognition scenarios.
+
+    Parameters
+    ----------
+    manifest
+        Manifest containing recognition case definitions.
+    cache_root
+        Optional cache root override.
+    """
+
     root = materialize_manifest(manifest, cache_root)
     output: List[RecognitionScenario] = []
     for scenario in manifest.get("recognition_scenarios", []):
@@ -201,6 +299,8 @@ def recognition_scenarios(
 def clustering_scenarios(
     manifest: Mapping[str, Any], cache_root: Optional[Path] = None
 ) -> List[ClusteringScenario]:
+    """Materialize a manifest's fixed-seed clustering scenarios."""
+
     root = materialize_manifest(manifest, cache_root)
     return [
         ClusteringScenario(
@@ -213,10 +313,14 @@ def clustering_scenarios(
 
 
 def decoded_pixel_sha256(image: np.ndarray) -> str:
+    """Hash contiguous decoded RGB bytes for cache verification."""
+
     return hashlib.sha256(np.ascontiguousarray(image).tobytes()).hexdigest()
 
 
 def source_identity_sha256(value: Any) -> str:
+    """Hash a source identity before it enters public metadata or logs."""
+
     return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
