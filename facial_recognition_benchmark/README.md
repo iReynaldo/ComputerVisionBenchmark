@@ -33,7 +33,7 @@ cd facenet_models
 pip install -e .
 
 # Install other dependencies
-conda install -c conda-forge numpy scikit-image networkx
+conda install -c conda-forge numpy scikit-image networkx opencv-python
 ```
 
 ### Install Benchmark Module

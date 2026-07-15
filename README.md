@@ -46,7 +46,8 @@ pip install -e .
 cd ..
 
 # Install app dependencies
-pip install numpy scikit-image
+pip install numpy scikit-image opencv-python
+
 
 # Install benchmark dependencies (for CelebA)
 pip install datasets
