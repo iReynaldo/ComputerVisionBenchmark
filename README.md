@@ -9,22 +9,22 @@ This repository contains two components for facial recognition benchmarking:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    facial_recognition_benchmark               │
-│  (Tests face detection, recognition, clustering, etc.)       │
+│                    facial_recognition_benchmark             │
+│  (Tests face detection, recognition, clustering, etc.)      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               │ Tests
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    face_recognition_app                      │
-│  (Implementation using FaceNet models)                       │
+│                    face_recognition_app                     │
+│  (Implementation using FaceNet models)                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               │ Uses
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    facenet_models                            │
-│  (Pre-trained MTCNN + InceptionResnetV1)                     │
+│                    facenet_models                           │
+│  (Pre-trained MTCNN + InceptionResnetV1)                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
