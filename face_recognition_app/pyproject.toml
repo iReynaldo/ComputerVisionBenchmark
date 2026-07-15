@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "week2-vision-capstone-starter"
+version = "0.1.0"
+description = "Interface-only starter for the CogWorks Week 2 vision capstone"
+requires-python = ">=3.8,<3.13"
+dependencies = ["numpy>=1.24,<2", "Pillow>=10.2,<11"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[project.entry-points."cogworks.submissions.v2"]
+vision-recognition = "benchmark_adapter:create_recognition_adapter"
+vision-clustering = "benchmark_adapter:create_clustering_adapter"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["app", "benchmark_adapter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

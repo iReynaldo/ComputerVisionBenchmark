@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cogworks-week2-vision-benchmark"
+version = "0.1.0"
+description = "Behavioral benchmark plugins for the CogWorks Week 2 vision capstone"
+readme = "README.md"
+requires-python = ">=3.8,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Reynaldo Jose Morillo Nolasco" }]
+dependencies = [
+  "numpy>=1.24,<2",
+  "Pillow>=10.2,<11",
+  "platformdirs>=4,<5",
+]
+
+[project.optional-dependencies]
+data = ["datasets>=2.20,<4"]
+test = [
+  "build>=1.2,<2",
+  "pytest>=8,<8.4",
+  "ruff>=0.12,<1",
+]
+
+[project.entry-points."cogworks.benchmarks.v2"]
+vision-recognition = "facial_recognition_benchmark.plugins:RecognitionBenchmark"
+vision-clustering = "facial_recognition_benchmark.plugins:ClusteringBenchmark"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+facial_recognition_benchmark = [
+  "descriptor.json",
+  "model-lock.json",
+  "manifests/*.json",
+  "py.typed",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["UP006", "UP007", "UP045"]
