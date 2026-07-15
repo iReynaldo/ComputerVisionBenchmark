@@ -27,8 +27,8 @@ points = {
     for point in metadata.entry_points().select(group='cogworks.benchmarks.v2')
 }
 assert set(points) == {'vision-recognition', 'vision-clustering'}
-assert points['vision-recognition']().benchmark_version == '2.0.0'
-assert points['vision-clustering']().benchmark_version == '2.0.0'
+assert points['vision-recognition']().benchmark_version == 2
+assert points['vision-clustering']().benchmark_version == 2
 assert resources.files('facial_recognition_benchmark').joinpath('model-lock.json').is_file()
 """
         subprocess.run([str(python), "-c", code], check=True, cwd=str(root))

@@ -7,12 +7,12 @@
   "model_lock": "model-lock.json",
   "tracks": {
     "vision-recognition": {
-      "benchmark_version": "2.0.0",
+      "benchmark_version": 2,
       "scorer_version": "recognition-v1",
       "primary_metric": "recognition_score"
     },
     "vision-clustering": {
-      "benchmark_version": "2.0.0",
+      "benchmark_version": 2,
       "scorer_version": "clustering-v1",
       "primary_metric": "clustering_pairwise_f1"
     }

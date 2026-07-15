@@ -20,8 +20,9 @@ from .metrics import score_clustering, score_recognition
 
 class RecognitionBenchmark:
     benchmark_id = "vision-recognition"
-    benchmark_version = "2.0.0"
+    benchmark_version = 2
     contract_version = "cogworks.submissions.v2"
+    plugin_version = "0.1.0"
     dataset_version = "celeba-manifests-v1"
     scorer_version = "recognition-v1"
     primary_metric = "recognition_score"
@@ -47,8 +48,9 @@ class RecognitionBenchmark:
 
 class ClusteringBenchmark:
     benchmark_id = "vision-clustering"
-    benchmark_version = "2.0.0"
+    benchmark_version = 2
     contract_version = "cogworks.submissions.v2"
+    plugin_version = "0.1.0"
     dataset_version = "celeba-manifests-v1"
     scorer_version = "clustering-v1"
     primary_metric = "clustering_pairwise_f1"
