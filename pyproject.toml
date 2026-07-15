@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
+requires = ["setuptools>=61.2", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,8 +8,7 @@ version = "0.1.0"
 description = "Behavioral benchmark plugins for the CogWorks Week 2 vision capstone"
 readme = "README.md"
 requires-python = ">=3.8,<3.13"
-license = "MIT"
-license-files = ["LICENSE"]
+license = { file = "LICENSE" }
 authors = [{ name = "Reynaldo Jose Morillo Nolasco" }]
 dependencies = [
   "numpy>=1.24,<2",
