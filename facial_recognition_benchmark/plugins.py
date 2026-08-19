@@ -124,7 +124,7 @@ class ClusteringBenchmark:
     contract_version = "cogworks.submissions.v2"
     plugin_version = "0.1.0"
     dataset_version = "celeba-manifests-v1"
-    scorer_version = "clustering-v1"
+    scorer_version = "clustering-v2"
     primary_metric = "clustering_pairwise_f1"
 
     metric_labels = {
