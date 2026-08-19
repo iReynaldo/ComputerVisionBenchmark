@@ -328,8 +328,17 @@ def clustering_scenarios(
     for scenario in manifest.get("clustering_scenarios", []):
         images = _images(root, scenario["sample_ids"])
         labels = list(scenario["labels"])
+        # The manifest's own scenario_id ties each repeat to its scored
+        # case, so the spread is measured within one scenario rather than
+        # across scenarios of different difficulty.
+        key = str(scenario["scenario_id"]) if "scenario_id" in scenario else None
         cases.append(
-            ClusteringScenario(images=images, expected_labels=labels, seed=int(scenario["seed"]))
+            ClusteringScenario(
+                images=images,
+                expected_labels=labels,
+                seed=int(scenario["seed"]),
+                scenario_key=key,
+            )
         )
         if not include_stability:
             continue
@@ -338,7 +347,11 @@ def clustering_scenarios(
                 continue
             cases.append(
                 ClusteringScenario(
-                    images=images, expected_labels=labels, seed=seed, scored=False
+                    images=images,
+                    expected_labels=labels,
+                    seed=seed,
+                    scored=False,
+                    scenario_key=key,
                 )
             )
     return cases

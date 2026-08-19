@@ -44,12 +44,19 @@ class ClusteringScenario:
     sweep re-runs the same images under other seeds to report how far a
     randomized clusterer's answer moves; those repeats are diagnostic and
     must not change the number a team publishes.
+
+    ``scenario_key`` names the manifest scenario a case belongs to, so the
+    sweep compares each repeat against its own scenario's scored case
+    rather than against every scenario at once. ``None`` means the case
+    attaches to the most recent scored case in the list, which is the
+    order ``clustering_scenarios`` emits them in.
     """
 
     images: Sequence[Image]
     expected_labels: Sequence[ClusterId]
     seed: int
     scored: bool = True
+    scenario_key: Optional[str] = None
 
 
 RecognitionOutput = Dict[str, List[Optional[PersonId]]]

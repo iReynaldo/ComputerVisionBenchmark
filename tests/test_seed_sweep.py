@@ -97,6 +97,63 @@ class TestTheSweepCatchesInstability:
         assert bench.last_diagnostics == []
 
 
+class TestSpreadIsPerScenario:
+    """Repeats only mean something next to their own scenario's scored case.
+
+    Pooling every scenario's F1 into one list reports the difficulty gap
+    between scenarios as instability: a clusterer that is perfectly stable
+    on both an easy and a hard scenario would be told its answer swings.
+    """
+
+    @staticmethod
+    def two_scenarios():
+        easy = ["a", "a", "a", "b", "b", "b"]
+        hard = ["a", "a", "b", "b"]
+        out = []
+        for key, labels in (("easy", easy), ("hard", hard)):
+            out.append(
+                ClusteringScenario(
+                    images=[], expected_labels=labels, seed=1729, scenario_key=key
+                )
+            )
+            out.extend(
+                ClusteringScenario(
+                    images=[],
+                    expected_labels=labels,
+                    seed=s,
+                    scored=False,
+                    scenario_key=key,
+                )
+                for s in (20260819, 31337, 8675309)
+            )
+        return out
+
+    def test_a_stable_clusterer_on_scenarios_of_different_difficulty_reports_zero(self):
+        bench = ClusteringBenchmark()
+        perfect_easy = [0, 0, 0, 1, 1, 1]
+        one_cluster_hard = [0, 0, 0, 0]  # stable everywhere, F1 0.5 on hard
+        outputs = [perfect_easy] * 4 + [one_cluster_hard] * 4
+        metrics = bench.score(outputs, self.two_scenarios())
+        assert metrics["clustering_pairwise_f1"] == 0.75
+        assert metrics["clustering_seed_spread"] == 0.0
+        note = " ".join(bench.last_diagnostics)
+        # One primary seed plus three sweep seeds, not a case count.
+        assert "across 4 seeds" in note
+
+    def test_the_worst_scenario_sets_the_reported_spread(self):
+        bench = ClusteringBenchmark()
+        perfect_easy = [0, 0, 0, 1, 1, 1]
+        outputs = [perfect_easy] * 4 + [
+            [0, 0, 1, 1],      # scored: perfect on hard
+            [0, 0, 0, 0],      # and then the answer wanders
+            [0, 1, 2, 3],
+            [0, 0, 1, 1],
+        ]
+        metrics = bench.score(outputs, self.two_scenarios())
+        assert metrics["clustering_seed_spread"] > 0.15
+        assert "visit order" in " ".join(bench.last_diagnostics)
+
+
 class TestSeedsAreFixed:
     def test_the_sweep_seeds_do_not_depend_on_the_clock_or_the_process(self):
         """Two runs of one submission must face the same seeds, or a team

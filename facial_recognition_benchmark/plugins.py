@@ -185,13 +185,44 @@ class ClusteringBenchmark:
         )
 
         self.last_diagnostics = []
-        sweep = [(o, c) for o, c in zip(outputs, cases) if not getattr(c, "scored", True)]
-        if sweep:
-            f1s = [
-                score_clustering([o], [c.expected_labels])["clustering_pairwise_f1"]
-                for o, c in sweep
-            ]
-            f1s.append(metrics["clustering_pairwise_f1"])
+        if any(not getattr(c, "scored", True) for c in cases):
+            # The spread is per scenario: each repeat reruns one scenario's
+            # images, so it only says something next to that scenario's own
+            # scored case. Pooling every scenario into one list would report
+            # the difficulty gap between scenarios as instability. A repeat
+            # names its scenario with scenario_key; when the key is absent it
+            # belongs to the most recent scored case, which is the order
+            # load_cases emits them in.
+            f1_groups: Dict[Any, List[float]] = {}
+            seed_groups: Dict[Any, set] = {}
+            swept_keys: List[Any] = []
+            last_scored_key: Any = None
+            for index, (output, case) in enumerate(zip(outputs, cases)):
+                is_scored = getattr(case, "scored", True)
+                key = getattr(case, "scenario_key", None)
+                if is_scored:
+                    if key is None:
+                        key = ("scored-at", index)
+                    last_scored_key = key
+                elif key is None:
+                    # Repeats before any scored case have nothing to attach
+                    # to; compare them with each other rather than hiding
+                    # each in its own group.
+                    key = last_scored_key if last_scored_key is not None else "orphan-sweep"
+                f1 = score_clustering([output], [case.expected_labels])[
+                    "clustering_pairwise_f1"
+                ]
+                f1_groups.setdefault(key, []).append(f1)
+                seed_groups.setdefault(key, set()).add(getattr(case, "seed", None))
+                if not is_scored and key not in swept_keys:
+                    swept_keys.append(key)
+            # The reported number is the worst scenario: one unstable scenario
+            # means some random choice is loose even when the others held.
+            # max() keeps the first of tied keys, so ties fall to the earliest
+            # scenario.
+            worst = max(swept_keys, key=lambda key: max(f1_groups[key]) - min(f1_groups[key]))
+            f1s = f1_groups[worst]
+            seed_count = len(seed_groups[worst])
             spread = max(f1s) - min(f1s)
             metrics["clustering_seed_spread"] = spread
             # Calibrated on the 32-image evaluation scenario, where one
@@ -206,13 +237,13 @@ class ClusteringBenchmark:
                     "{:.2f} (from {:.2f} to {:.2f}). Whispers picks a random visit order, "
                     "so a spread this wide means the answer depends on that order more "
                     "than on the faces. Check that every random choice uses the seed you "
-                    "were given.".format(len(f1s), spread, min(f1s), max(f1s))
+                    "were given.".format(seed_count, spread, min(f1s), max(f1s))
                 )
             elif spread <= 0.02:
                 self.last_diagnostics.append(
                     "The clustering held to within {:.3f} F1 across {} seeds, so the "
                     "answer is about the faces rather than the visit order.".format(
-                        spread, len(f1s)
+                        spread, seed_count
                     )
                 )
         return metrics
