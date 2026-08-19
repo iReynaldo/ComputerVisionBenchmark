@@ -344,8 +344,8 @@ After installing this project, both submission entry points are discoverable:
 
 ```bash
 python -m pip install -e .
-cogbench test vision-recognition
-cogbench test vision-clustering
+cogworks test vision-recognition
+cogworks test vision-clustering
 ```
 
 This is intentionally separate from the future student-template repository.

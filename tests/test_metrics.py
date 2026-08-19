@@ -54,3 +54,92 @@ def test_degenerate_clusterings_are_not_perfect(actual):
 
 def test_missing_clustering_case_scores_zero():
     assert score_clustering([], [[0, 0]])["clustering_pairwise_f1"] == 0.0
+
+
+class TestRecognitionDiagnostics:
+    """A zero has to say which knob produced it.
+
+    The case that motivated this is real. A student submission scored known
+    identification 0.83, unknown rejection 1.00, post-enrollment 0.00 -- which
+    reads as a broken recognizer and is not one. Its pipeline ranked the newly
+    enrolled person first at cosine distance 0.63, and its own 0.2846 cutoff
+    then rejected them. Same-person distances for people enrolled from several
+    photos sat at 0.05-0.13, so that cutoff is right for those and too strict
+    for a profile built from one image.
+
+    None of that is visible unless abstaining and misnaming are counted apart,
+    which is what these tests hold in place.
+    """
+
+    def _case(self, post_answers, unknown_answers=(None, None)):
+        actual = [{
+            "known": ["a", "b"],
+            "unknown_before": list(unknown_answers),
+            "post_enrollment": list(post_answers),
+        }]
+        expected = [{
+            "known": ["a", "b"],
+            "unknown_before": [None, None],
+            "post_enrollment": ["new"] * len(post_answers),
+        }]
+        return score_recognition(actual, expected)
+
+    def test_total_abstention_is_named_as_the_cutoff(self):
+        scores = self._case([None, None])
+        assert scores["post_enrollment_accuracy"] == 0.0
+        notes = " ".join(scores["_diagnostics"]).lower()
+        assert "cutoff" in notes
+        assert "one photo" in notes
+
+    def test_misnaming_is_not_blamed_on_the_cutoff(self):
+        """Wrong name means the threshold passed; the fix is elsewhere."""
+
+        scores = self._case(["someone_else", "someone_else"])
+        notes = " ".join(scores["_diagnostics"])
+        assert "someone else's name" in notes
+        assert "not the threshold" in notes
+
+    def test_a_working_lifecycle_produces_no_complaint(self):
+        scores = self._case(["new", "new"])
+        assert scores["post_enrollment_accuracy"] == 1.0
+        assert scores["_diagnostics"] == []
+
+    def test_a_cutoff_that_never_fires_is_called_out(self):
+        """Everyone recognized and no stranger rejected: the other failure."""
+
+        actual = [{
+            "known": ["a", "b"],
+            "unknown_before": ["a", "b"],
+            "post_enrollment": ["new"],
+        }]
+        expected = [{
+            "known": ["a", "b"],
+            "unknown_before": [None, None],
+            "post_enrollment": ["new"],
+        }]
+        notes = " ".join(score_recognition(actual, expected)["_diagnostics"])
+        assert "never fires" in notes
+
+    def test_diagnostics_do_not_leak_into_the_metric_mapping(self):
+        """The plugin must strip the key; the runner floats every value."""
+
+        from types import SimpleNamespace
+
+        from facial_recognition_benchmark.plugins import RecognitionBenchmark
+
+        # `score` derives its own expected labels from the scenario, so the
+        # case has to be scenario-shaped rather than a bare mapping.
+        scenario = SimpleNamespace(
+            known=[SimpleNamespace(person_id="a", enrollment=[], queries=[object()])],
+            unknown_queries=[object()],
+            unknown_person_id="new",
+            unknown_enrollment=[],
+            post_enrollment_queries=[object()],
+        )
+        benchmark = RecognitionBenchmark()
+        actual = [{"known": ["a"], "unknown_before": [None], "post_enrollment": [None]}]
+        scores = benchmark.score(actual, [scenario])
+        assert "_diagnostics" not in scores
+        for value in scores.values():
+            assert isinstance(float(value), float)
+        assert benchmark.last_diagnostics

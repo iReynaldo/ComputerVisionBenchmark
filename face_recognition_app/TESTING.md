@@ -8,9 +8,9 @@ Use four progressively broader checks:
 
 1. `pytest` runs your fast tests with arrays and a fake model. No network or
    model checkpoint is needed.
-2. `cogbench test vision-recognition` or `vision-clustering` runs the small
+2. `cogworks test vision-recognition` or `vision-clustering` runs the small
    public real-data integration set.
-3. `cogbench run ...` runs the larger public evaluation set.
+3. `cogworks run ...` runs the larger public evaluation set.
 4. The portal runs a disjoint hidden evaluation in a network-disabled sandbox.
 
 ## Useful test shapes
