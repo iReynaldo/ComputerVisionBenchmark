@@ -38,11 +38,18 @@ class RecognitionScenario:
 
 @dataclass(frozen=True)
 class ClusteringScenario:
-    """One fixed image partition and random seed for Whispers evaluation."""
+    """One fixed image partition and random seed for Whispers evaluation.
+
+    ``scored`` marks whether this case contributes to the metrics. The seed
+    sweep re-runs the same images under other seeds to report how far a
+    randomized clusterer's answer moves; those repeats are diagnostic and
+    must not change the number a team publishes.
+    """
 
     images: Sequence[Image]
     expected_labels: Sequence[ClusterId]
     seed: int
+    scored: bool = True
 
 
 RecognitionOutput = Dict[str, List[Optional[PersonId]]]

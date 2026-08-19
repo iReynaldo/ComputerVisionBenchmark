@@ -130,7 +130,11 @@ class ClusteringBenchmark:
     metric_labels = {
         "clustering_pairwise_f1": "Pairwise F1",
         "adjusted_rand_index": "Adjusted Rand index",
+        "clustering_seed_spread": "Spread across seeds",
     }
+    #: Reported only when the seed sweep ran. Lower is better: it measures how
+    #: much the answer changed when nothing about the photos did.
+    lower_is_better = {"clustering_seed_spread"}
 
     #: See RecognitionBenchmark.metric_help. Source for the vocabulary:
     #: docs/cogweb/pages/Video/Whispers.md.
@@ -148,6 +152,13 @@ class ClusteringBenchmark:
             "puts every photo in one giant cluster can look respectable on F1 "
             "and lands near zero here."
         ),
+        "clustering_seed_spread": (
+            "How much the pairwise F1 moved when the same photos were clustered "
+            "again under different random seeds. Whispers picks a random visit "
+            "order, so this says whether your answer is about the faces or about "
+            "that order. A wide spread usually means some random choice is not "
+            "using the seed you were given. This is reported and never scored."
+        ),
     }
 
     def load_cases(self, tier: str, cache_root: Optional[Path] = None) -> Sequence[Any]:
@@ -161,9 +172,50 @@ class ClusteringBenchmark:
         return [run_clustering_scenario(factory, model, case) for case in cases]
 
     def score(self, outputs: Sequence[Sequence[Any]], cases: Sequence[Any]) -> Dict[str, float]:
-        """Compute label-invariant metrics against trusted partitions."""
+        """Compute label-invariant metrics against trusted partitions.
 
-        return score_clustering(outputs, [case.expected_labels for case in cases])
+        Only cases marked ``scored`` reach the metrics. The rest are the seed
+        sweep, read here to report how far a randomized clusterer's answer
+        moves between draws and never to change the score itself.
+        """
+
+        scored = [(o, c) for o, c in zip(outputs, cases) if getattr(c, "scored", True)]
+        metrics = score_clustering(
+            [o for o, _ in scored], [c.expected_labels for _, c in scored]
+        )
+
+        self.last_diagnostics = []
+        sweep = [(o, c) for o, c in zip(outputs, cases) if not getattr(c, "scored", True)]
+        if sweep:
+            f1s = [
+                score_clustering([o], [c.expected_labels])["clustering_pairwise_f1"]
+                for o, c in sweep
+            ]
+            f1s.append(metrics["clustering_pairwise_f1"])
+            spread = max(f1s) - min(f1s)
+            metrics["clustering_seed_spread"] = spread
+            # Calibrated on the 32-image evaluation scenario, where one
+            # misplaced photo moves F1 by 0.07 and a genuinely unstable run
+            # moves it much further. On a six-image test scenario one mistake
+            # moves it by 0.38, so the small tier will trip the loud threshold
+            # more readily; that is the right direction for a tier students
+            # use to debug.
+            if spread >= 0.15:
+                self.last_diagnostics.append(
+                    "Re-running the same images under {} different seeds moved the F1 by "
+                    "{:.2f} (from {:.2f} to {:.2f}). Whispers picks a random visit order, "
+                    "so a spread this wide means the answer depends on that order more "
+                    "than on the faces. Check that every random choice uses the seed you "
+                    "were given.".format(len(f1s), spread, min(f1s), max(f1s))
+                )
+            elif spread <= 0.02:
+                self.last_diagnostics.append(
+                    "The clustering held to within {:.3f} F1 across {} seeds, so the "
+                    "answer is about the faces rather than the visit order.".format(
+                        spread, len(f1s)
+                    )
+                )
+        return metrics
 
     def cache_status(self, tier: str, cache_root: Optional[Path] = None) -> CacheStatus:
         """Report whether the selected public data tier is cached and valid."""

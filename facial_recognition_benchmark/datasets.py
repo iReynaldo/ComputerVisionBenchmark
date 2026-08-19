@@ -296,20 +296,52 @@ def recognition_scenarios(
     return output
 
 
+#: Extra seeds every clustering scenario is also run under.
+#:
+#: Whispers is a randomized algorithm: it visits nodes in a random order and
+#: the course says so. One seed measures one draw, and a submission whose
+#: answer swings across draws is telling a team something real about their
+#: algorithm that a single number hides. The manifest's own seed stays first
+#: and is the only one that scores, so adding these moves no published result.
+#:
+#: Three, not ten: each seed is a full re-clustering of the same images, and
+#: the point is to detect a wide spread rather than to estimate its variance
+#: precisely.
+STABILITY_SEEDS = (20260819, 31337, 8675309)
+
+
 def clustering_scenarios(
-    manifest: Mapping[str, Any], cache_root: Optional[Path] = None
+    manifest: Mapping[str, Any],
+    cache_root: Optional[Path] = None,
+    include_stability: bool = True,
 ) -> List[ClusteringScenario]:
-    """Materialize a manifest's fixed-seed clustering scenarios."""
+    """Materialize a manifest's clustering scenarios, plus the seed sweep.
+
+    Each manifest scenario yields its own scored case first, then one repeat
+    per entry in ``STABILITY_SEEDS`` over the identical images. Only the
+    scored case counts toward the metrics; the repeats are read by
+    ``score`` to report how far the answer moves between draws.
+    """
 
     root = materialize_manifest(manifest, cache_root)
-    return [
-        ClusteringScenario(
-            images=_images(root, scenario["sample_ids"]),
-            expected_labels=list(scenario["labels"]),
-            seed=int(scenario["seed"]),
+    cases: List[ClusteringScenario] = []
+    for scenario in manifest.get("clustering_scenarios", []):
+        images = _images(root, scenario["sample_ids"])
+        labels = list(scenario["labels"])
+        cases.append(
+            ClusteringScenario(images=images, expected_labels=labels, seed=int(scenario["seed"]))
         )
-        for scenario in manifest.get("clustering_scenarios", [])
-    ]
+        if not include_stability:
+            continue
+        for seed in STABILITY_SEEDS:
+            if seed == int(scenario["seed"]):
+                continue
+            cases.append(
+                ClusteringScenario(
+                    images=images, expected_labels=labels, seed=seed, scored=False
+                )
+            )
+    return cases
 
 
 def decoded_pixel_sha256(image: np.ndarray) -> str:
