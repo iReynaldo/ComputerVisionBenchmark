@@ -13,7 +13,7 @@
     },
     "vision-clustering": {
       "benchmark_version": 2,
-      "scorer_version": "clustering-v1",
+      "scorer_version": "clustering-v2",
       "primary_metric": "clustering_pairwise_f1"
     }
   }
