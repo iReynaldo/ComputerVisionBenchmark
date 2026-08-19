@@ -13,10 +13,18 @@ facial recognition application. This module tests:
 
 Usage:
     from facial_recognition_benchmark import run_benchmark
-    
-    # Run all benchmarks
-    results = run_benchmark(model, database, whispers_func)
-    
+
+    # Run all benchmarks. The third argument is a test_config dict, not a
+    # whispers function; database and test_config are both optional.
+    results = run_benchmark(
+        model,
+        database={"Alice": {"name": "Alice", "descriptors": [...],
+                            "average_descriptor": ...}},
+        test_config={"face_images": ["img1.jpg"],
+                     "ground_truth_num_faces": {"img1.jpg": 1}},
+    )
+    print(results.summary())
+
     # Or run specific benchmarks
     from facial_recognition_benchmark.detection import benchmark_detection
     results = benchmark_detection(model, test_images)

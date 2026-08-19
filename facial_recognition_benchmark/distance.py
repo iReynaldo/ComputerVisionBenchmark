@@ -252,22 +252,35 @@ def benchmark_cosine_distance_threshold(
     f1_list = []
     
     for threshold in thresholds:
+        # Initialize before the branches: with an empty input list the branch
+        # never assigned these, and the read below raised UnboundLocalError.
+        true_positives = 0
+        false_positives = 0
+        true_negatives = 0
+        false_negatives = 0
+
         # True positive rate: same-person pairs correctly matched
         if same_person_distances:
             true_positives = sum(1 for d in same_person_distances if d <= threshold)
             tpr = true_positives / len(same_person_distances)
         else:
             tpr = 0.0
-        
+
         # False positive rate: different-person pairs incorrectly matched
         if different_person_distances:
             false_positives = sum(1 for d in different_person_distances if d <= threshold)
             fpr = false_positives / len(different_person_distances)
         else:
             fpr = 0.0
-        
+
         # Calculate F1 score
-        precision = 1 - fpr if (true_positives + false_positives) > 0 else 0.0
+        # The old value here was 1 - fpr, which is specificity, not precision.
+        # Real precision is TP / (TP + FP), so f1_scores and the optimal
+        # threshold derived from them now reflect actual F1.
+        if (true_positives + false_positives) > 0:
+            precision = true_positives / (true_positives + false_positives)
+        else:
+            precision = 0.0
         recall = tpr
         if precision + recall > 0:
             f1 = 2 * (precision * recall) / (precision + recall)

@@ -230,7 +230,9 @@ def run_benchmark(
             model,
             test_config["face_images"],
             test_config.get("non_face_images"),
-            test_config.get("ground_truth_num_faces")
+            # Keyword is required: the 4th positional slot used to be the unused
+            # ground_truth_boxes, which silently left detection_accuracy None.
+            ground_truth_num_faces=test_config.get("ground_truth_num_faces")
         )
         
         # Check detection accuracy
@@ -656,7 +658,9 @@ def calculate_overall_score(results: Dict[str, Any]) -> float:
     if results["descriptor_results"].get("avg_generation_time") is not None:
         # Normalize: 0-100ms -> 1.0, >200ms -> 0.0
         gen_time = results["descriptor_results"]["avg_generation_time"]
-        desc_score = max(0, 1 - (gen_time - 0.05) / 0.15)
+        # Clamp both ends: the docstring promises a 0..1 score, and a very fast
+        # generation time (< 50ms) made this exceed 1 and print overall > 100%.
+        desc_score = min(1, max(0, 1 - (gen_time - 0.05) / 0.15))
         scores.append(desc_score)
         weights.append(0.15)
     

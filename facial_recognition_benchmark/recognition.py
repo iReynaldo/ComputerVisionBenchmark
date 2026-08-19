@@ -54,7 +54,8 @@ def benchmark_face_recognition(
         "true_positives": 0,
         "false_positives": 0,
         "true_negatives": 0,
-        "false_negatives": 0
+        "false_negatives": 0,
+        "misidentifications": 0
     }
     
     recognition_times = []
@@ -116,19 +117,29 @@ def benchmark_face_recognition(
     
     # Calculate metrics if ground truth provided
     if ground_truth_labels and len(ground_truth_labels) == len(predictions):
+        # The old else-branch put naming the wrong known person into
+        # true_negatives, and a correct Unknown/Unknown rejection into
+        # true_positives. Wrong-name-for-known now gets its own counter,
+        # misidentifications, and correct rejection is a true negative.
         for pred, truth in zip(predictions, ground_truth_labels):
-            if pred == truth:
+            if pred == truth and truth != "Unknown":
                 results["true_positives"] += 1
+            elif pred == truth:  # both "Unknown": correct rejection
+                results["true_negatives"] += 1
             elif pred == "Unknown" and truth != "Unknown":
                 results["false_negatives"] += 1
             elif pred != "Unknown" and truth == "Unknown":
                 results["false_positives"] += 1
-            else:
-                results["true_negatives"] += 1
-        
+            else:  # both known, different names
+                results["misidentifications"] += 1
+
         total = len(predictions)
         if total > 0:
-            results["recognition_accuracy"] = results["true_positives"] / total
+            # Exact-match accuracy over all cases, unchanged from before:
+            # correct predictions include Unknown/Unknown, which the old code
+            # counted in true_positives.
+            correct = results["true_positives"] + results["true_negatives"]
+            results["recognition_accuracy"] = correct / total
         
         # Calculate unknown detection rate
         unknown_count = sum(1 for truth in ground_truth_labels if truth == "Unknown")

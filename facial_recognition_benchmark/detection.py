@@ -18,12 +18,13 @@ def benchmark_detection(
     model,
     face_images: List[str],
     non_face_images: Optional[List[str]] = None,
-    ground_truth_boxes: Optional[Dict[str, List[Tuple[int, int, int, int]]]] = None,
+    # ground_truth_boxes removed: it was never read, and its positional slot
+    # swallowed ground_truth_num_faces from run_benchmark, leaving accuracy None.
     ground_truth_num_faces: Optional[Dict[str, int]] = None
 ) -> Dict[str, Any]:
     """
     Benchmark face detection performance.
-    
+
     Parameters
     ----------
     model : FacenetModel
@@ -32,8 +33,6 @@ def benchmark_detection(
         List of paths to images containing faces.
     non_face_images : List[str], optional
         List of paths to images without faces (for false positive testing).
-    ground_truth_boxes : Dict[str, List[Tuple[int, int, int, int]]], optional
-        Dictionary mapping image paths to lists of ground truth bounding boxes.
     ground_truth_num_faces : Dict[str, int], optional
         Dictionary mapping image paths to expected number of faces.
     
