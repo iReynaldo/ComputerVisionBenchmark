@@ -253,6 +253,55 @@ class ClusteringBenchmark:
 
         return cache_status(_public_manifest(tier), cache_root)
 
+    def discovery(self) -> Any:
+        """What to look for in a repository that never packaged itself.
+
+        None of the 2026 capstones registered an entry point, so asking for
+        one asks for a step no team took. Instead the benchmark says what its
+        task is -- photos in, one label per photo out -- and
+        ``cogbench.resolve`` searches their repository against that by running
+        their functions.
+
+        The fixture is the first scored scenario: real photos of two people
+        with a known grouping. Built lazily, because it reads the cached
+        dataset and importing a plugin should not.
+        """
+
+        from cogbench.discovery_spec import DiscoverySpec
+        from cogbench.pipeline import Fixtures
+
+        from .roles import CLUSTER_ROLE, accepts, write_photos
+
+        scenario = next(
+            (case for case in self.load_cases("test") if getattr(case, "scored", False)),
+            None,
+        )
+        if scenario is None:
+            return None
+
+        images = list(scenario.images)
+        expected = list(scenario.expected_labels)
+        # Two forms of the same photos. The capstone document tells students
+        # to write "a function that takes in a list of image-paths"
+        # (docs/capstones/week2-vision-capstone.md:386), and all three audited
+        # 2026 repositories did, so an arrays-only fixture refused every team
+        # that followed the instructions. Their own function decides which it
+        # takes; the photos are identical either way.
+        return DiscoverySpec(
+            chain_role=CLUSTER_ROLE,
+            fixture=Fixtures(((images,), (write_photos(images),))),
+            accepts=lambda chain, *_: accepts(chain, images, expected),
+            arrangements=None,  # nothing is stored between calls
+            hints=("week2", "week 2", "vision", "faces", "capstone"),
+        )
+
+    def submission_from_discovery(self, submission: Any) -> Any:
+        """Turn a resolved repository into the object ``run`` expects."""
+
+        from .discovered import build
+
+        return build(submission)
+
 
 def _public_manifest(tier: str) -> Mapping[str, Any]:
     if tier not in ("test", "evaluation"):
