@@ -57,18 +57,27 @@ def looks_like_descriptors(value: Any) -> bool:
 
 
 def looks_like_labels(value: Any) -> bool:
-    """One label per image, in image order.
+    """An answer saying which photos go together.
+
+    Two shapes, both of which the course teaches and the corpus wrote. One
+    label per image, in image order, is the obvious one. Groups of nodes is
+    the other: the capstone's `connected_components` "returns the groups"
+    (week2-vision-capstone.md:392), and two of the three audited teams end
+    there rather than flattening back to a list.
 
     A label is whatever a team used to mean "these two are the same person": a
-    number, a name, a node id. What matters is that there is one per image and
-    that they can be compared for equality, which is all the metric needs.
+    number, a name, a node id. What matters is that the answer can be turned
+    into a grouping, which is all the metric reads.
     """
 
     if isinstance(value, np.ndarray):
         return value.ndim == 1 and value.size > 0
     if not isinstance(value, (list, tuple)) or not value:
         return False
-    return all(isinstance(item, (int, str, np.integer)) for item in value)
+    if all(isinstance(item, (int, str, np.integer)) for item in value):
+        return True
+    # Groups: a list of lists, each holding whatever their node class is.
+    return all(isinstance(item, (list, tuple, set)) and len(item) > 0 for item in value)
 
 
 #: Images in, one label per image out.
@@ -145,6 +154,12 @@ CLUSTER_ROLE = Role(
             # driver decides how long a scored run gets; this only has to be
             # long enough to tell a working chain from a broken one.
             tunings=(10, 20, 0.3, 0.4, 0.5, 0.6, 0.7),
+            # The course says `propagate_label` "should update that node's
+            # label" and has `whispers` record how the component count
+            # changes as it runs (week2-vision-capstone.md:390-392). One
+            # audited team's whispers does exactly that: it returns the
+            # counts, and the labels are on the graph it was handed.
+            in_place=True,
         ),
     ),
 )
@@ -170,17 +185,63 @@ def accepts(chain, images, expected):
                 type(error).__name__, str(error)[:120]
             )
 
-    labels = list(labels) if not isinstance(labels, np.ndarray) else labels.tolist()
-    if len(labels) != len(images):
-        return False, "returned {} labels for {} images".format(len(labels), len(images))
-
-    # Same grouping as the truth, whatever the labels are called. A team's "0"
-    # and "1" and another's node ids are the same answer.
-    got = _grouping(labels)
+    got = _as_grouping(labels, len(images))
+    if got is None:
+        return False, "returned {} that does not say which photos go together".format(
+            type(labels).__name__
+        )
     want = _grouping(expected)
     if got == want:
         return True, "grouped {} photos into {} people".format(len(images), len(want))
     return False, "grouped into {} instead of {}".format(len(got), len(want))
+
+
+def _as_grouping(answer: Any, count: int):
+    """Read an answer into "which photos went together", or None.
+
+    Two shapes. One label per photo, in photo order, is read positionally.
+    Groups of nodes are read by asking each node which photo it is, which the
+    course's own node class answers: it carries the file path of its image
+    (week2-vision-capstone.md:418). Anything else is not an answer to this
+    question and is refused rather than guessed at.
+    """
+
+    if isinstance(answer, np.ndarray):
+        answer = answer.tolist()
+    if not isinstance(answer, (list, tuple)) or not answer:
+        return None
+
+    if all(isinstance(item, (int, str, np.integer)) for item in answer):
+        return _grouping(answer) if len(answer) == count else None
+
+    groups = []
+    for group in answer:
+        if not isinstance(group, (list, tuple, set)):
+            return None
+        members = frozenset(_identifies(node) for node in group)
+        if any(member is None for member in members):
+            return None
+        groups.append(members)
+    if sum(len(group) for group in groups) != count:
+        return None
+    return frozenset(groups)
+
+
+def _identifies(node: Any):
+    """Which photo a node stands for, read off the node itself.
+
+    The course's node carries "the file path of the image corresponding to
+    this node" (week2-vision-capstone.md:438), so that is what is asked for.
+    A node that says nothing about its photo cannot be placed, and the answer
+    is refused rather than guessed at.
+    """
+
+    for attribute in ("image_path", "file_path", "path", "filepath", "image", "id", "ID"):
+        value = getattr(node, attribute, None)
+        if value is None:
+            continue
+        return str(value)
+    return None
 
 
 def _grouping(labels: Sequence[Any]) -> frozenset:
