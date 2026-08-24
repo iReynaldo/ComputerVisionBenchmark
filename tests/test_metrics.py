@@ -143,3 +143,47 @@ class TestRecognitionDiagnostics:
         for value in scores.values():
             assert isinstance(float(value), float)
         assert benchmark.last_diagnostics
+
+
+class TestAcceptanceRefusesOnlyDegenerateAnswers:
+    """What the discovery acceptance test is allowed to refuse.
+
+    Its job is to kill a wrong binding, not to grade. A team whose threshold
+    splits one person into two clusters has a working pipeline and a tuning
+    problem, and the benchmark exists to put a number on exactly that. It
+    used to require the exact partition, which refused those teams and told
+    them, in a wiring message, that nothing took their function's output.
+
+    Measured on a 2026 repository: 4, 5, 6, 4 and 5 groups across the five
+    thresholds the search tries, against a fixture with 3 people. Every one
+    of those is a real answer to the question.
+    """
+
+    #: The rule, restated. `roles.py` imports cogbench, which this suite does
+    #: not have on its path, so the shape is asserted here and
+    #: `python/cogbench/tests` covers the wiring. Kept deliberately literal:
+    #: if the rule in roles.py changes, this file should have to change too.
+    def _verdict(self, labels, count=12):
+        groups = {}
+        for index, label in enumerate(labels):
+            groups.setdefault(label, []).append(index)
+        if len(groups) <= 1:
+            return "refused"
+        if len(groups) >= count:
+            return "refused"
+        return "accepted"
+
+    def test_one_cluster_for_everyone_is_refused(self):
+        assert self._verdict(["x"] * 12) == "refused"
+
+    def test_one_cluster_each_is_refused(self):
+        assert self._verdict(list(range(12))) == "refused"
+
+    def test_a_nearly_right_grouping_is_accepted(self):
+        """The case this exists for: one person split, the rest correct."""
+
+        labels = ["a", "a", "a", "a2", "b", "b", "b", "b", "c", "c", "c", "c"]
+        assert self._verdict(labels) == "accepted"
+
+    def test_the_exact_answer_is_accepted(self):
+        assert self._verdict(["a"] * 4 + ["b"] * 4 + ["c"] * 4) == "accepted"

@@ -174,6 +174,12 @@ def accepts(chain, images, expected):
     chain that returns the same label for everyone, or a different label for
     every photo, both of which a wrongly assembled pipeline produces.
 
+    That is what it now does. It used to require the exact partition, which
+    read as the same rule and is a much stronger one: it refused a pipeline
+    that grouped the photos nearly right, and refused it with a wiring
+    message. A grouping that is neither degenerate is an answer to this
+    question, and how good an answer belongs to the metric.
+
     Returns ``(passed, detail)``.
     """
 
@@ -193,7 +199,30 @@ def accepts(chain, images, expected):
     want = _grouping(expected)
     if got == want:
         return True, "grouped {} photos into {} people".format(len(images), len(want))
-    return False, "grouped into {} instead of {}".format(len(got), len(want))
+
+    # Not an exact match, which is not the same as not an answer. The
+    # docstring above promised to reject a chain that says everyone is the
+    # same person or that everyone is different, and to leave quality to the
+    # benchmark. Requiring the exact partition broke that promise: it also
+    # refused a chain that grouped the photos nearly right, which is a tuning
+    # result and the single most useful thing a team can be told.
+    #
+    # Measured on one 2026 repository. Its pipeline binds and runs, and at
+    # every cutoff the search tries it returns 4, 5 or 6 groups where the
+    # fixture has 3, because its threshold splits one person in two. Refusing
+    # that reported "nothing took that for the labels step", which is false
+    # and sends them to look for a function they already wrote.
+    #
+    # So the bar here is: did this chain answer the question at all. Two
+    # degenerate answers are still refused, because both are what a wrongly
+    # assembled pipeline produces rather than what a working one gets wrong.
+    if len(got) <= 1:
+        return False, "put all {} photos in one group".format(len(images))
+    if len(got) >= len(images):
+        return False, "put every photo in its own group"
+    return True, "grouped {} photos into {} groups where there are {} people".format(
+        len(images), len(got), len(want)
+    )
 
 
 def _as_grouping(answer: Any, count: int):
