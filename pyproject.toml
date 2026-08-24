@@ -48,6 +48,12 @@ facial_recognition_benchmark = [
 [tool.pytest.ini_options]
 testpaths = ["tests", "face_recognition_app/tests", "facial_recognition_benchmark/tests.py"]
 addopts = "-ra"
+# The reference application is a directory of modules rather than an
+# installed package, and two suites import it as `face_recognition`. Without
+# this the collection of those two files fails with ModuleNotFoundError on
+# any interpreter that does not already have the directory on its path,
+# which is every clean checkout.
+pythonpath = ["face_recognition_app"]
 
 [tool.ruff]
 target-version = "py38"
