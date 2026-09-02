@@ -27,16 +27,40 @@ class DiscoveredClustering:
     def cluster(self, images: Sequence[Any], *, seed: int = 0) -> List[Any]:
         """Photos in, one label per photo out.
 
-        ``seed`` is accepted and not passed on. Their functions were bound by
-        calling them with photos alone, which is the signature the whole
-        corpus wrote; a team who takes a seed is welcome to, and the benchmark
-        already measures how much their answer moves between draws.
+        ``seed`` is applied to Python's `random` and not passed on. Their
+        functions were bound by calling them with photos alone, which is the
+        signature the whole corpus wrote; a team who takes a seed is welcome
+        to, and the benchmark already measures how much their answer moves
+        between draws.
+
+        The photos go in as the form their first function was bound with:
+        arrays, or the same photos written to disk as paths. That is not a
+        transformation of their answer. The search proved the chain on one
+        of those two forms and the scored run must present the same one, or
+        it scores a function that never ran.
         """
 
-        from .roles import _run
+        import random
 
-        labels = _run(self._chain, list(images))
-        return list(labels)
+        from .roles import _run, labels_in_photo_order, write_photos
+
+        # The driver passes a seed so a scored run is reproducible. Their
+        # `whispers` draws from `random` without seeding, so the seed has to
+        # be set here, before their loop runs; the search seeds the same way
+        # (`_resolve_chain`), and the instructor adapter for this corpus does
+        # too. Not passed on: their functions were bound without it.
+        random.seed(seed)
+        photos = list(images)
+        if getattr(self._chain[0], "form", None) == 1:
+            photos = write_photos(photos)
+        answer = _run(self._chain, photos)
+        # Their answer is read the way the acceptance test read it. Two of
+        # the three audited teams end at `connected_comps`, which returns
+        # groups of their own node objects; the driver wants one label per
+        # photo in photo order. Handing the groups over unread made the
+        # driver count 4 or 8 "labels" for 12 photos and refuse a chain the
+        # search had just proved.
+        return labels_in_photo_order(answer, photos)
 
 
 def build(submission: Any) -> DiscoveredClustering:

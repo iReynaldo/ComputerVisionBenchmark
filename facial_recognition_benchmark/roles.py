@@ -33,6 +33,8 @@ from cogbench.pipeline import Role, Stage
 
 __all__ = [
     "CLUSTER_ROLE",
+    "cluster_role_for",
+    "labels_in_photo_order",
     "accepts",
     "looks_like_labels",
     "looks_like_descriptors",
@@ -78,6 +80,47 @@ def looks_like_labels(value: Any) -> bool:
         return True
     # Groups: a list of lists, each holding whatever their node class is.
     return all(isinstance(item, (list, tuple, set)) and len(item) > 0 for item in value)
+
+
+def looks_like_labels_for(count: int):
+    """`looks_like_labels`, and there must be one per photo.
+
+    The plain predicate accepts any non-empty list of ints, and one 2026
+    team's `whispers` returns a list of ints: how many components there
+    were after each pass. Ten ints for twelve photos read as the answer,
+    the chain ended there, and their `connected_comps`, which reads the
+    real labels off the graph, was never called. The search knows how many
+    photos it handed over, so the answer must have that many entries, or
+    groups whose sizes add up to it.
+    """
+
+    def _labels(value: Any) -> bool:
+        if not looks_like_labels(value):
+            return False
+        if isinstance(value, np.ndarray):
+            return value.size == count
+        if all(isinstance(item, (int, str, np.integer)) for item in value):
+            return len(value) == count
+        return sum(len(group) for group in value) == count
+
+    return _labels
+
+
+def cluster_role_for(count: int) -> Role:
+    """`CLUSTER_ROLE` whose last stage insists on one label per photo."""
+
+    from dataclasses import replace as _replace
+
+    # Both stages that can end the chain. Sizing only the last one left
+    # `settle` accepting a list of component counts as its output, which
+    # took a beam slot from the in-place chain that reads the real labels.
+    stages = tuple(
+        _replace(stage, produces=looks_like_labels_for(count))
+        if stage.name in ("settle", "labels")
+        else stage
+        for stage in CLUSTER_ROLE.stages
+    )
+    return Role(CLUSTER_ROLE.name, stages)
 
 
 #: Images in, one label per image out.
@@ -141,8 +184,8 @@ CLUSTER_ROLE = Role(
             tunings=(0.3, 0.4, 0.5, 0.6, 0.7),
         ),
         Stage(
-            "labels",
-            prefers=("whisper", "cluster", "label", "component", "group"),
+            "settle",
+            prefers=("whisper", "propagate", "cluster", "label"),
             produces=looks_like_labels,
             fusible=True,
             # Whispers is iterative and the course does not fix a count, so
@@ -153,13 +196,31 @@ CLUSTER_ROLE = Role(
             # Enough passes to settle on this fixture. The benchmark's own
             # driver decides how long a scored run gets; this only has to be
             # long enough to tell a working chain from a broken one.
-            tunings=(10, 20, 0.3, 0.4, 0.5, 0.6, 0.7),
+            # Largest pass count first. What binds is what the scored run
+            # uses, and on one 2026 repository the same chain scored 0.67
+            # at 10 passes against 0.91 at 20 or more; the instructor's
+            # hand-written adapter runs their loop for len(nodes) * 60. 200
+            # passes settle a 12-photo fixture and take well under the
+            # per-call clock.
+            tunings=(200, 20, 10, 0.3, 0.4, 0.5, 0.6, 0.7),
             # The course says `propagate_label` "should update that node's
             # label" and has `whispers` record how the component count
             # changes as it runs (week2-vision-capstone.md:390-392). One
             # audited team's whispers does exactly that: it returns the
             # counts, and the labels are on the graph it was handed.
             in_place=True,
+        ),
+        Stage(
+            "labels",
+            prefers=("component", "group", "cluster", "label"),
+            produces=looks_like_labels,
+            # A team whose `whispers` returns the labels has already
+            # answered; this stage is for one whose `whispers` left them on
+            # the graph and whose `connected_comps` reads them back. Before
+            # this stage existed the in-place step was also the last one, so
+            # the graph it forwarded reached nothing and the chain was
+            # refused as "does not say which photos go together".
+            fusible=True,
         ),
     ),
 )
@@ -256,6 +317,56 @@ def _as_grouping(answer: Any, count: int):
     return frozenset(groups)
 
 
+def labels_in_photo_order(answer: Any, photos: Sequence[Any]) -> List[Any]:
+    """One label per photo, in the order the photos were handed over.
+
+    The same two shapes `_as_grouping` reads. A positional list is returned
+    as given. Groups of nodes are placed by asking each node which photo it
+    stands for (`_identifies`), matched against the photo list by `str()`,
+    which is how a path and a node's `image_path` compare. A photo their
+    pipeline dropped (no face found, file unreadable) gets a label of its
+    own, because the metric compares pairs and an unplaced photo is in no
+    pair with anyone; that is what their code said about it. An answer that
+    does not say which photos went together raises, and the driver records
+    the contract error against the scenario.
+    """
+
+    if isinstance(answer, np.ndarray):
+        answer = answer.tolist()
+    if isinstance(answer, (list, tuple)) and answer and all(
+        isinstance(item, (int, str, np.integer)) for item in answer
+    ):
+        return list(answer)
+    keys = [str(photo) for photo in photos]
+    placed: dict = {}
+    for index, group in enumerate(answer if isinstance(answer, (list, tuple)) else ()):
+        if not isinstance(group, (list, tuple, set)):
+            raise TypeError("cluster() returned something that is not groups or labels")
+        for node in group:
+            who = _identifies(node)
+            if who is None:
+                continue
+            # The course's own Node takes "a unique identifier for this
+            # node ... a value in [0, N-1]" and the file path separately
+            # (week2-vision-capstone.md:418). One audited team fills the
+            # id and leaves file_path None, so their nodes name a photo by
+            # its position. That is a positional answer, read as one.
+            if who.isdigit() and int(who) < len(keys) and who not in placed:
+                who = keys[int(who)]
+            placed[who] = index
+    if not placed:
+        raise TypeError("cluster() returned groups whose members do not say which photo they are")
+    labels: List[Any] = []
+    next_label = len(answer)
+    for key in keys:
+        if key in placed:
+            labels.append(placed[key])
+        else:
+            labels.append(next_label)
+            next_label += 1
+    return labels
+
+
 def _identifies(node: Any):
     """Which photo a node stands for, read off the node itself.
 
@@ -283,12 +394,49 @@ def _grouping(labels: Sequence[Any]) -> frozenset:
 
 
 def _run(chain: Sequence[Any], images: Sequence[Any]) -> Any:
-    """Push images through a resolved chain, changing nothing on the way."""
+    """Push images through a resolved chain, changing nothing on the way.
 
-    value = chain[0].call(images)
+    Each step is called as the search called it: `bound` carries the tuning
+    that made it run, and a returned pair is spread when the next function
+    takes both parts. Neither transforms an answer. Without them a chain the
+    search accepted raised on its first call here and the verdict blamed
+    their algorithm.
+    """
+
+    value = _step(chain[0], (images,))
     for step in chain[1:]:
-        value = step.call(value)
+        produced = _step(step, (value,))
+        # A step that answered on the graph it was given returns something
+        # else (their `whispers` returns how the component count moved).
+        # The graph goes forward, exactly as the search carried it.
+        if not getattr(step, "in_place", False):
+            value = produced
     return value
+
+
+def _step(step: Any, args: tuple) -> Any:
+    """Call one step with the hand-off the search used for it.
+
+    The offers come from the search's own `_handoffs`, in its order: the
+    value whole, spread as arguments, the two parts reversed, then each
+    part on its own. Any exception moves to the next offer, because that is
+    what the search did (`_call` treats every failure as "not this one").
+    A hand-written subset here drifted twice from that list, and each time
+    a chain the search had accepted raised on the same input when scored.
+    """
+
+    from cogbench.pipeline import _Spread, _handoffs
+
+    call = getattr(step, "bound", step.call)
+    if len(args) != 1:
+        return call(*args)
+    error: BaseException = TypeError("no offer accepted")
+    for offered, _note in _handoffs(args[0]):
+        try:
+            return call(*offered) if isinstance(offered, _Spread) else call(offered)
+        except BaseException as caught:  # noqa: BLE001 - student code raises anything
+            error = caught
+    raise error
 
 
 def write_photos(images: Sequence[Any]) -> List[Any]:
