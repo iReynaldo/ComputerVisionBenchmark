@@ -298,6 +298,7 @@ class ClusteringBenchmark:
             accepts=lambda chain, *_: accepts(chain, forms.for_chain(chain)[0], expected),
             arrangements=None,  # nothing is stored between calls
             hints=("week2", "week 2", "vision", "faces", "capstone"),
+            expects="one group per person",
         )
 
     def submission_from_discovery(self, submission: Any) -> Any:
